@@ -3,7 +3,6 @@ package com.otrftp.net.server;
 import static com.otrftp.common.IOUtils.*;
 import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
@@ -93,10 +92,8 @@ public class KeyFilesServerConnection implements Runnable {
                 }
 
                 log.info("Finished command");
-                //assert filePath != null;
             }
-            // TODO: send file here!
-            //succeeded = true;
+
         } catch(Throwable e) {
             log.error("Unhandled exception: ", e);
         } finally {
@@ -109,23 +106,40 @@ public class KeyFilesServerConnection implements Runnable {
     }
 
     private void helpSendMessage() throws IOException {
-       String receiverName = br.readLine();
-       String message = br.readLine();
        
+       // Read sender, receiverName, and message from sender
+       
+       String sender = br.readLine();
+       String receiverName = br.readLine();
+       String bytes = br.readLine();
+              
+       String message = readFromStream(br, Integer.parseInt(bytes));
+              
+       // Find receiver connection information online
        User user = findUser(receiverName);
        
+       // Check if receiver is online
        if(user.getPort() == -1) {
+           // receiver not online
            log.error("User not online");
+           pw.println("User not online");
+           pw.flush();
            return;
        }
        
-       
+       // Open output stream to write to the receiver
        OutputStream os = user.getSocket().get(1).getOutputStream();
-       InputStream is = socket.getInputStream();
        
-       PrintWriter pw = new PrintWriter(os);
-       pw.println(HELPSENDMESSAGE);
-       pw.println(message);
+       // Write HELPSENDMESSAGE command and forward message to receiver
+       PrintWriter pwReceiver = new PrintWriter(os);
+       pwReceiver.println(HELPSENDMESSAGE);
+       pwReceiver.println(sender);
+       pwReceiver.println(bytes);
+       pwReceiver.print(message);
+       pwReceiver.flush();
+       
+       // Report to sender message was forward successfully
+       pw.println("Message sent to " + receiverName + " successfully");
        pw.flush();
        
     }

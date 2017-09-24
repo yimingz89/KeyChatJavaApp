@@ -62,13 +62,28 @@ public class KeybaseCommandLine {
         return result;
     }
 
-    public static String decrypt(String cipherText) throws IOException {
+    public static String decrypt(String fileName) throws IOException {
         String s;
 
         String result = "";
+        
+        String osName = System.getProperty("os.name");
+        
+        String shell = "bash";
+        String shellOption = "-c";
+        
+        if (osName.startsWith("Windows")) {
+            shell = "cmd";
+            shellOption = "/c";
+        }
+
+        
+        String cmd = "keybase pgp decrypt -i " + fileName;
+        
 
         Process p = Runtime.getRuntime()
-                .exec("keybase pgp decrypt -m " + "\"" + cipherText + "\"");
+                .exec(new String[] { shell, shellOption, cmd });
+        
         BufferedReader stdInput = new BufferedReader(new InputStreamReader(p.getInputStream()));
 
         BufferedReader stdError = new BufferedReader(new InputStreamReader(p.getErrorStream()));

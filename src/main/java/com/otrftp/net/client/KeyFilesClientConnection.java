@@ -3,10 +3,12 @@ package com.otrftp.net.client;
 import static com.otrftp.common.IOUtils.*;
 
 import java.io.File;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.Socket;
+
+import org.apache.commons.io.FileUtils;
+import org.apache.commons.lang3.RandomStringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -24,13 +26,9 @@ public class KeyFilesClientConnection implements Runnable {
 
 	public void run() {
 		try {	
-			saveFile(socket);
+			displayMessage(socket);
 
 			log.info("Finished command");
-			//assert filePath != null;
-
-			// TODO: send file here!
-			//succeeded = true;
 		} catch(Throwable e) {
 			log.error("Unhandled exception: ", e);
 		} finally {
@@ -42,15 +40,21 @@ public class KeyFilesClientConnection implements Runnable {
 		}
 	}
 
-	private void saveFile(Socket clientSock) throws IOException {
-		InputStream dis = clientSock.getInputStream();
-		//BufferedReader br = new BufferedReader(new InputStreamReader(dis));
+	private void displayMessage(Socket clientSock) throws IOException {
+		InputStream dis = clientSock.getInputStream();	
 		
-		String message = readLine(dis);
+		String sender = readLine(dis);
+		String cipherText = readFromStream(dis);
+		
+		String cipherFileName = RandomStringUtils.randomAlphanumeric(10);
+		File cipherFile = new File(cipherFileName);
+		FileUtils.write(cipherFile, cipherText);
+		
 	
-	
-		String decryptedMsg = KeybaseCommandLine.decrypt(message);
-		System.out.println("Message: " + decryptedMsg);
+		String decryptedMsg = KeybaseCommandLine.decrypt(cipherFileName);
+		System.out.print("Message from " + sender + ": " + decryptedMsg);
+		
+		cipherFile.delete();
 		
 	}
 

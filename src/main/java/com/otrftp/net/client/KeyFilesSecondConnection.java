@@ -2,7 +2,7 @@ package com.otrftp.net.client;
 
 import static com.otrftp.common.IOUtils.*;
 
-import java.io.FileOutputStream;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -10,13 +10,15 @@ import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
 import java.net.Socket;
 
+import org.apache.commons.io.FileUtils;
+import org.apache.commons.lang3.RandomStringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 
 public class KeyFilesSecondConnection implements Runnable {
 
-    private static final String HELPSENDFILE = "help-send-file";
+    private static final String HELPSENDMESSAGE = "help-send-message";
     private static final Logger log = LoggerFactory.getLogger(KeyFilesSecondConnection.class);
 
     private InputStream is;
@@ -40,40 +42,24 @@ public class KeyFilesSecondConnection implements Runnable {
             while(true) {
                 String command = readLine(is);
                 
-                if(!command.equals(HELPSENDFILE)) {
-                    log.error(command + " received, help-send-file command expected");
+                if(!command.equals(HELPSENDMESSAGE)) {
+                    log.error(command + " received, help-send-message command expected");
                     continue;
                 }
                 
-                String fileName = readLine(is);
-                if(fileName == null || fileName.isEmpty()) {
-                    log.error("Unable to obtain file name properly");
-                }
+                String sender = readLine(is);
+                String bytes = readLine(is);
+                String cipherText = readFromStream(is, Integer.parseInt(bytes));
                 
-               String stringFileSize = readLine(is);
-               int fileSize = Integer.parseInt(stringFileSize);
-               byte[] buffer = new byte[4096];
-               
-               int read = 0;
-               int remainingBytes = fileSize;
-               
-               FileOutputStream fos = new FileOutputStream(fileName);
-               while(remainingBytes > 0) {
-                   if(remainingBytes < buffer.length) {
-                       read = is.read(buffer, 0, remainingBytes);
-                   }
-                   else {
-                       read = is.read(buffer, 0, buffer.length);
-                   }
-                   
-                   fos.write(buffer, 0, read);
-                   remainingBytes -= read;
-               }
-               
-               log.info("File received, total byte size: " + fileSize);
-               fos.close();
-               
-               
+                String cipherFileName = RandomStringUtils.randomAlphanumeric(10);
+                File cipherFile = new File(cipherFileName);
+                FileUtils.write(cipherFile, cipherText);
+                
+            
+                String decryptedMsg = KeybaseCommandLine.decrypt(cipherFileName);
+                System.out.print("Message from " + sender + ": " + decryptedMsg);
+                
+                cipherFile.delete();
                
                
                

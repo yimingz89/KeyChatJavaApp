@@ -1,9 +1,6 @@
 package com.otrftp.net.client;
 
-import static com.otrftp.common.IOUtils.*;
 import java.io.BufferedReader;
-import java.io.File;
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -14,7 +11,6 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.net.SocketTimeoutException;
-import java.nio.file.Files;
 import java.util.Scanner;
 
 
@@ -180,23 +176,38 @@ public class KeyFilesClientApp implements Runnable
         }
     }
 
-    private void helpSendMessage(OutputStream os, InputStream is) throws IOException {
+    private void helpSendMessage(OutputStream mainserveros, InputStream mainserveris) throws IOException {
 
+        // Get receiver's username from console
         System.out.print("Enter the receiver's username: ");
         String receiverName = scanner.nextLine();
         
+        // Get message from console
         System.out.print("Enter message: ");
         String message = scanner.nextLine();
         
+        // Tell the main server HELPSENDMESSAGE and give the receiverName and message
+        PrintWriter pw = new PrintWriter(new OutputStreamWriter(mainserveros));
        
-
-        PrintWriter pw = new PrintWriter(new OutputStreamWriter(os));
-        pw.println(HELPSENDMESSAGE);
-
-        pw.println(receiverName);
-        pw.println(message);
-        pw.flush();
- 
+        
+        String encryptedMsg;
+        try {
+            encryptedMsg = KeybaseCommandLine.encrypt(message, receiverName);
+            pw.println(HELPSENDMESSAGE);
+            pw.println(user);
+            pw.println(receiverName);
+            pw.println(encryptedMsg.getBytes().length);
+            pw.print(encryptedMsg);
+            pw.flush();
+        }
+        catch (Exception e){
+            log.error("Could not encrypt and send message");
+        }
+        
+        // Get status back from main server
+        BufferedReader br = new BufferedReader(new InputStreamReader(mainserveris));
+        String status = br.readLine();
+        log.info(status);
         
     }
 
@@ -218,7 +229,7 @@ public class KeyFilesClientApp implements Runnable
         message = scanner.nextLine();
 
         System.out.print("Enter the receiver's username: "); 
-        receiverName = scanner.next();
+        receiverName = scanner.nextLine();
 
         PrintWriter pw = new PrintWriter(new OutputStreamWriter(mainserveros));
         pw.println(SENDMESSAGE);
@@ -252,9 +263,9 @@ public class KeyFilesClientApp implements Runnable
         String encryptedMsg;
         try {
             encryptedMsg = KeybaseCommandLine.encrypt(message, receiverName);
+            clientpw.println(user);
             clientpw.println(encryptedMsg);
             clientpw.flush();
-            //output.write(encryptedMsg.getBytes());
         }
         catch (Exception e){
             log.error("Could not encrypt and send message");
