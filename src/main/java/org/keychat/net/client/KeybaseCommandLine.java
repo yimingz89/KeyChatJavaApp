@@ -1,7 +1,10 @@
-package com.otrftp.net.client;
+package org.keychat.net.client;
 import java.io.*;
 import java.util.Scanner;
 
+/**
+ * Uses the Keybase command line tool to encrypt and decrypt
+ */
 public class KeybaseCommandLine {
 
     public static void main(String[] args) throws Exception {
@@ -19,6 +22,12 @@ public class KeybaseCommandLine {
         input.close();
     }
 
+    /**
+     * Login to Keybase
+     * @param username
+     * @return true if successful, false otherwise
+     * @throws IOException
+     */
     public static boolean KeybaseLogin(String username) throws IOException {
 
         boolean isSuccessful = true;
@@ -41,6 +50,13 @@ public class KeybaseCommandLine {
         return isSuccessful;
     }
 
+    /**
+     * Encrypts a message under the public key of the recipient
+     * @param message
+     * @param recipient
+     * @return the encrypted message as a String
+     * @throws IOException
+     */
     public static String encrypt(String message, String recipient) throws IOException {
         String s;
 
@@ -62,6 +78,12 @@ public class KeybaseCommandLine {
         return result;
     }
 
+    /**
+     * Decrypts a message in a file
+     * @param fileName
+     * @return the decrypted message as a String
+     * @throws IOException
+     */
     public static String decrypt(String fileName) throws IOException {
         String s;
 

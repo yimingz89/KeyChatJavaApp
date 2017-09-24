@@ -1,8 +1,7 @@
-package com.otrftp.net.client;
+package org.keychat.net.client;
 
 import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
@@ -17,25 +16,22 @@ import java.util.Scanner;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.otrftp.common.OtrCrypto;
-
-public class KeyFilesClientApp implements Runnable
+/**
+ * This starts a KeyChat client.
+ */
+public class KeyChatClientApp extends KeyChatClientBase implements Runnable
 {
 
     private static final String EXIT = "exit";
     private static final String LIST = "list";
     private static final String SENDMESSAGE = "send-message";
     private static final String HELPSENDMESSAGE = "help-send-message";
+    private static final int CLIENT_CONNECT_TIMEOUT = 10000;
 
-    private static final Logger log = LoggerFactory.getLogger(KeyFilesClientApp.class);
+    private static final Logger log = LoggerFactory.getLogger(KeyChatClientApp.class);
 
-    private String user;
-    private int clientServerPort;
-    private Socket serverSocket;
-    //private Socket clientServerSocket;
+    private Socket serverSocket; // socket for connecting with main server
     private Scanner scanner = new Scanner(System.in);
-
-    private boolean succeeded = false;
 
     public static void main(String[] args) throws Exception {
 
@@ -77,22 +73,26 @@ public class KeyFilesClientApp implements Runnable
         try {
             // launch the client thread
             Socket firstClientSocket = connect(serverAddress, serverPort);
-            Thread clientThread = new Thread(new KeyFilesClientApp(firstClientSocket, user, clientServerPort), "KeyFiles client thread");
+            Thread clientThread = new Thread(new KeyChatClientApp(firstClientSocket, user, clientServerPort), "KeyChat client thread");
             clientThread.start();
            
-            // launch second client connection for receiving files from server
+            // launch second client connection for receiving commands/messages from server
             Socket secondClientSocket = connect(serverAddress, serverPort);
-            Thread secondConnection = new Thread(new KeyFilesSecondConnection(secondClientSocket, user, clientServerPort), "Second connection thread");
+            Thread secondConnection = new Thread(new KeyChatSecondConnection(secondClientSocket, user, clientServerPort), "Second connection thread");
+            secondConnection.setDaemon(true);
             secondConnection.start();
             
             
-            // launch the server thread of this client for receiving files
-            Thread clientServer = new Thread(new KeyFilesClientServer(clientServerPort), "Client server thread");
+            // launch the server thread of this client for receiving messages from other clients
+            Thread clientServer = new Thread(new KeyChatClientServer(clientServerPort), "Client server thread");
+            clientServer.setDaemon(true);
             clientServer.start();
             
+            
             clientThread.join();
-            secondConnection.join();
-            clientServer.join();
+
+            return;
+            
             
         } catch (Exception e) {
             log.error("Error starting ClientApp", e);
@@ -102,23 +102,40 @@ public class KeyFilesClientApp implements Runnable
 
     }
 
-    public KeyFilesClientApp(Socket socket, String user, int clientServerPort) throws IOException {
+    /**
+     * Constructor for KeyChatClientApp
+     * @param socket is the socket for connecting with the main server
+     * @param user is the Keybase username
+     * @param clientServerPort is the port of the server this KeyChat Client will run
+     * @throws IOException
+     */
+    public KeyChatClientApp(Socket socket, String user, int clientServerPort) throws IOException {
         this.user = user;
         this.clientServerPort = clientServerPort;
         
         serverSocket = socket;
    }
 
+    /**
+     * Prints usage
+     */
     private static void printUsage() {
-        System.err.println("java KeyFilesClientApp --connect server_address server_port --username john  --client-server-port client_server_port");
+        System.err.println("java KeyChatClientApp --connect server_address server_port --username user_name  --client-server-port client_server_port");
     }
 
 
+    /**
+     * Connects to server given the address and port
+     * @param serverAddress
+     * @param serverPort
+     * @return the connection socket
+     * @throws IOException
+     */
     public static Socket connect(String serverAddress, int serverPort) throws IOException {
         InetSocketAddress sockAddr = new InetSocketAddress(InetAddress.getByName(serverAddress), serverPort);
         
         Socket socket = new Socket();
-        socket.connect(sockAddr, OtrCrypto.CLIENT_CONNECT_TIMEOUT);
+        socket.connect(sockAddr, CLIENT_CONNECT_TIMEOUT);
         
         return socket;
     }
@@ -134,10 +151,11 @@ public class KeyFilesClientApp implements Runnable
             log.error("Unable to login to Keybase");
         }
 
-        try (OutputStream os = serverSocket.getOutputStream();
-                InputStream is = serverSocket.getInputStream()) {
+        // set PrintWriter for writing to the main server and BufferedReader for reading from the main server
+        try (PrintWriter pw = new PrintWriter(serverSocket.getOutputStream());
+                BufferedReader br = new BufferedReader(new InputStreamReader(serverSocket.getInputStream()))) {
 
-            appearOnline(os, is);
+            appearOnline(pw);
 
             boolean repeat = true;
             while (repeat) {
@@ -145,7 +163,7 @@ public class KeyFilesClientApp implements Runnable
                 command = command.toLowerCase();
                 switch (command) {
                 case LIST:
-                    list(os, is);
+                    list(pw, br);
                     break;
 
                 case EXIT:
@@ -153,11 +171,11 @@ public class KeyFilesClientApp implements Runnable
                     break;
 
                 case SENDMESSAGE:
-                    sendMessage(os, is);
+                    sendMessage(pw, br);
                     break;
 
                 case HELPSENDMESSAGE:
-                    helpSendMessage(os, is);
+                    helpSendMessage(pw, br);
                     break;
 
                 default:
@@ -176,20 +194,23 @@ public class KeyFilesClientApp implements Runnable
         }
     }
 
-    private void helpSendMessage(OutputStream mainserveros, InputStream mainserveris) throws IOException {
+    /**
+     * Asks the server to help relay a message to another user
+     * @param pw
+     * @param br
+     * @throws IOException
+     */
+    private void helpSendMessage(PrintWriter pw, BufferedReader br) throws IOException {
 
-        // Get receiver's username from console
+        // get receiver's username from console
         System.out.print("Enter the receiver's username: ");
         String receiverName = scanner.nextLine();
         
-        // Get message from console
+        // get message from console
         System.out.print("Enter message: ");
         String message = scanner.nextLine();
         
-        // Tell the main server HELPSENDMESSAGE and give the receiverName and message
-        PrintWriter pw = new PrintWriter(new OutputStreamWriter(mainserveros));
-       
-        
+        // tell the main server the HELPSENDMESSAGE command and give the receiverName and message              
         String encryptedMsg;
         try {
             encryptedMsg = KeybaseCommandLine.encrypt(message, receiverName);
@@ -204,49 +225,61 @@ public class KeyFilesClientApp implements Runnable
             log.error("Could not encrypt and send message");
         }
         
-        // Get status back from main server
-        BufferedReader br = new BufferedReader(new InputStreamReader(mainserveris));
+        // get status back from main server
         String status = br.readLine();
         log.info(status);
         
     }
 
+    /**
+     * Connects to another user's server given the address and port of that server
+     * @param address
+     * @param port
+     * @return the connection socket 
+     * @throws IOException
+     */
     public Socket connectToReceiver(String address, int port) throws IOException {
         InetSocketAddress sockAddr = new InetSocketAddress(InetAddress.getByName(address), port);
         Socket receiverSocket = new Socket();
-        receiverSocket.connect(sockAddr, OtrCrypto.CLIENT_CONNECT_TIMEOUT);	
+        receiverSocket.connect(sockAddr, CLIENT_CONNECT_TIMEOUT);	
         return receiverSocket;
     }
     
-
-    public void sendMessage(OutputStream mainserveros, InputStream mainserveris) throws IOException {
+    /**
+     * Sends a message by connecting directly to the receiver without relaying through the main server
+     * @param pw
+     * @param br
+     * @throws IOException
+     */
+    public void sendMessage(PrintWriter pw, BufferedReader br) throws IOException {
         String receiverName;
         String message;
         String receiverAddress;
         int receiverPort;
 
+        // get message from console
         System.out.print("Enter message: ");
         message = scanner.nextLine();
 
+        // get receiver's username from console
         System.out.print("Enter the receiver's username: "); 
         receiverName = scanner.nextLine();
 
-        PrintWriter pw = new PrintWriter(new OutputStreamWriter(mainserveros));
+        // send over the SENDMESSAGE command and the receiverName to main server
         pw.println(SENDMESSAGE);
-
         pw.println(receiverName);
         pw.flush();
 
-        BufferedReader br = new BufferedReader(new InputStreamReader(mainserveris));
+        // receive the address and port of recipient
         receiverAddress = br.readLine(); 
         receiverPort = Integer.parseInt(br.readLine());
 
         if(receiverPort == -1) {
-            log.error("User " + receiverName + " not online");
+            log.info("User " + receiverName + " not online");
             return;
         }
 
-        // connect to receiver's server here, implemented in KeyFilesClient 
+        // connect to receiver's server here
         Socket socket;
         try {
             socket = connectToReceiver(receiverAddress, receiverPort);
@@ -255,11 +288,11 @@ public class KeyFilesClientApp implements Runnable
             return;
         } 
 
-
+        // set PrintWriter for writing directly to recipient 
         OutputStream output = socket.getOutputStream();
         PrintWriter clientpw = new PrintWriter(new OutputStreamWriter(output));
 
-        
+        // encrypt (using Keybase command line) and send over message 
         String encryptedMsg;
         try {
             encryptedMsg = KeybaseCommandLine.encrypt(message, receiverName);
@@ -277,28 +310,27 @@ public class KeyFilesClientApp implements Runnable
         
     }
 
-    private void appearOnline(OutputStream os, InputStream is) throws IOException {
-        PrintWriter pw = new PrintWriter(new OutputStreamWriter(os));
-        pw.println(user);
-        pw.println(clientServerPort);
-        pw.flush();
-    }
 
-    private void list(OutputStream os, InputStream is) throws IOException {
-        PrintWriter pw = new PrintWriter(new OutputStreamWriter(os));
+    /**
+     * Asks server to return all users currently online
+     * @param pw
+     * @param br
+     * @throws IOException
+     */
+    private void list(PrintWriter pw, BufferedReader br) throws IOException {
         pw.println(LIST);
         pw.flush();
-        BufferedReader br = new BufferedReader(new InputStreamReader(is));
         System.out.println(br.readLine());
     }
 
+    /**
+     * Gets a command from the console
+     * @return
+     */
     private String getCommandFromUser() {
         System.out.print("Command: ");
         String command = scanner.nextLine();
         return command;
     }
 
-    public boolean succeeded() {
-        return succeeded;
-    }
 }

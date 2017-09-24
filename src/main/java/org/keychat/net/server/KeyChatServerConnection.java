@@ -1,6 +1,5 @@
-package com.otrftp.net.server;
+package org.keychat.net.server;
 
-import static com.otrftp.common.IOUtils.*;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -8,18 +7,20 @@ import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
 import java.net.Socket;
+import java.net.SocketException;
 
+import org.apache.commons.io.IOUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 
-public class KeyFilesServerConnection implements Runnable {
+public class KeyChatServerConnection implements Runnable {
 
     private static final String EXIT = "exit";
     private static final String LIST = "list";
     private static final String SENDMESSAGE = "send-message";
     private static final String HELPSENDMESSAGE = "help-send-message";
-    private static final Logger log = LoggerFactory.getLogger(KeyFilesServerConnection.class);
+    private static final Logger log = LoggerFactory.getLogger(KeyChatServerConnection.class);
 
 
     private Socket socket;
@@ -30,7 +31,7 @@ public class KeyFilesServerConnection implements Runnable {
     private String clientAddress;
     private int clientServerPort;
 
-    public KeyFilesServerConnection(Socket socket) {
+    public KeyChatServerConnection(Socket socket) {
         this.socket = socket;
         try {
             br = new BufferedReader(new InputStreamReader(socket.getInputStream()));
@@ -39,12 +40,12 @@ public class KeyFilesServerConnection implements Runnable {
             clientServerPort = Integer.parseInt(br.readLine());
             clientAddress = socket.getInetAddress().getCanonicalHostName();
             
-            User user =  findUser(userName);
+            KeyChatUser user =  findUser(userName);
             if(user.getPort() == -1) {
                 user.setUser(userName);
                 user.setAddress(clientAddress);
                 user.setPort(clientServerPort);
-                KeyFilesServerApp.usernames.add(user);
+                KeyChatServerApp.onlineUsers.add(user);
             }
             
             user.getSocket().add(socket);
@@ -94,6 +95,8 @@ public class KeyFilesServerConnection implements Runnable {
                 log.info("Finished command");
             }
 
+        } catch (SocketException se) {
+            log.info("User " + userName +  " has disconnected");
         } catch(Throwable e) {
             log.error("Unhandled exception: ", e);
         } finally {
@@ -105,6 +108,10 @@ public class KeyFilesServerConnection implements Runnable {
         }
     }
 
+    /**
+     * Used when receiving the HELPSENDMESSAGE command from a user, relays the sender name, number of bytes in the message, and the message to the recipient
+     * @throws IOException
+     */
     private void helpSendMessage() throws IOException {
        
        // Read sender, receiverName, and message from sender
@@ -113,16 +120,18 @@ public class KeyFilesServerConnection implements Runnable {
        String receiverName = br.readLine();
        String bytes = br.readLine();
               
-       String message = readFromStream(br, Integer.parseInt(bytes));
+       char[] chars = new char[Integer.parseInt(bytes)];
+       IOUtils.readFully(br, chars);
+       String message = new String(chars);
               
        // Find receiver connection information online
-       User user = findUser(receiverName);
+       KeyChatUser user = findUser(receiverName);
        
        // Check if receiver is online
        if(user.getPort() == -1) {
            // receiver not online
-           log.error("User not online");
-           pw.println("User not online");
+           log.info("User " + receiverName + " not online");
+           pw.println("User " + receiverName + " not online");
            pw.flush();
            return;
        }
@@ -144,14 +153,21 @@ public class KeyFilesServerConnection implements Runnable {
        
     }
 
+    /**
+     * Sends all users currently online to a client
+     */
     private void list() {
-        pw.println(KeyFilesServerApp.usernames);
+        pw.println(KeyChatServerApp.onlineUsers);
         pw.flush();
     }
 
+    /**
+     * Used when receiving the SENDMESSAGE command from a user, reads in the receiver's name and sends back their address and port
+     * @throws IOException
+     */
     private void sendMessage() throws IOException {
         String receiverName = br.readLine();
-        User user = findUser(receiverName);
+        KeyChatUser user = findUser(receiverName);
 
         pw.println(user.getAddress());
         pw.println(user.getPort());
@@ -159,9 +175,14 @@ public class KeyFilesServerConnection implements Runnable {
 
     }
 
-    private User findUser(String receiverName) {
-        User userFound = new User(receiverName, "", -1);
-        for(User user : KeyFilesServerApp.usernames) {
+    /**
+     * Searches for a KeyChat user given the username in the online directory
+     * @param receiverName
+     * @return the desired user, or a null user if that user is not online
+     */
+    private KeyChatUser findUser(String receiverName) {
+        KeyChatUser userFound = new KeyChatUser(receiverName, "", -1);
+        for(KeyChatUser user : KeyChatServerApp.onlineUsers) {
             if(user.getUser().equalsIgnoreCase(receiverName)) {
                 userFound = user;
                 break;
@@ -170,6 +191,11 @@ public class KeyFilesServerConnection implements Runnable {
         return userFound;
     }
 
+    /**
+     * Reads in the command from he client
+     * @return the command
+     * @throws IOException
+     */
     private String getCommandFromClient() throws IOException {
         return br.readLine();
     }

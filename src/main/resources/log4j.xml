@@ -10,7 +10,7 @@
 	    </layout>
 	</appender>
 	
-	<logger name="com.otrftp.net" additivity="false">
+	<logger name="org.keychat.net" additivity="false">
 		<level value="debug" />
 		<appender-ref ref="console" />		
 	</logger>
