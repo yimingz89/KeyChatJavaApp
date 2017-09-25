@@ -13,7 +13,9 @@ import org.apache.commons.io.IOUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-
+/**
+ * This is the connection between a user and the main server.
+ */
 public class KeyChatServerConnection implements Runnable {
 
     private static final String EXIT = "exit";
@@ -36,11 +38,15 @@ public class KeyChatServerConnection implements Runnable {
         try {
             br = new BufferedReader(new InputStreamReader(socket.getInputStream()));
             pw = new PrintWriter(new OutputStreamWriter(socket.getOutputStream()));
+            
+            // read user's username and server port, and get their address
             userName = br.readLine();
             clientServerPort = Integer.parseInt(br.readLine());
             clientAddress = socket.getInetAddress().getCanonicalHostName();
             
-            KeyChatUser user =  findUser(userName);
+            KeyChatUser user =  findUser(userName); 
+            
+            // get user information
             if(user.getPort() == -1) {
                 user.setUser(userName);
                 user.setAddress(clientAddress);
