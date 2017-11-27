@@ -2,12 +2,15 @@ package org.keychat.net.server;
 
 import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
 import java.net.Socket;
 import java.net.SocketException;
+import java.util.ArrayList;
+import java.util.List;
 
 import org.apache.commons.io.IOUtils;
 import org.slf4j.Logger;
@@ -22,6 +25,7 @@ public class KeyChatServerConnection implements Runnable {
     private static final String LIST = "list";
     private static final String SENDMESSAGE = "send-message";
     private static final String HELPSENDMESSAGE = "help-send-message";
+	private static final String GETPUBLICKEY = "get-public-key";
     private static final Logger log = LoggerFactory.getLogger(KeyChatServerConnection.class);
 
 
@@ -42,7 +46,14 @@ public class KeyChatServerConnection implements Runnable {
             // read user's username and server port, and get their address
             userName = br.readLine();
             clientServerPort = Integer.parseInt(br.readLine());
+            int publicKeyBytes = Integer.parseInt(br.readLine());
+            
+            char[] chars = new char[publicKeyBytes];
+            IOUtils.readFully(br, chars);
+            String publicKey = new String(chars);
+            String uid = br.readLine();
             clientAddress = socket.getInetAddress().getCanonicalHostName();
+            
             
             KeyChatUser user =  findUser(userName); 
             
@@ -51,6 +62,8 @@ public class KeyChatServerConnection implements Runnable {
                 user.setUser(userName);
                 user.setAddress(clientAddress);
                 user.setPort(clientServerPort);
+                user.setPublicKey(publicKey);
+                user.setUid(uid);
                 KeyChatServerApp.onlineUsers.add(user);
             }
             
@@ -67,7 +80,8 @@ public class KeyChatServerConnection implements Runnable {
 
             boolean repeat = true;
             while (repeat) {
-                String command = getCommandFromClient();
+                String command = br.readLine();
+                		//getCommandFromClient();
                 if(command == null) {
                     log.info("Connection closed by client");
                     return;
@@ -93,6 +107,10 @@ public class KeyChatServerConnection implements Runnable {
                 case HELPSENDMESSAGE:
                     helpSendMessage();
                     break;
+                    
+                case GETPUBLICKEY:
+                	getPublicKey();
+                	break;
 
                 default:
                     break;
@@ -114,7 +132,24 @@ public class KeyChatServerConnection implements Runnable {
         }
     }
 
-    /**
+    private void getPublicKey() throws IOException {
+		String username = br.readLine();
+        KeyChatUser user = findUser(username);
+        
+        if(user == null) {
+        	pw.println(0);
+        	return;
+        }
+        
+        pw.println(user.getUid());
+		String publicKey = user.getPublicKey();
+		pw.println(publicKey.getBytes().length);
+		pw.print(publicKey);
+        pw.flush();
+        
+	}
+
+	/**
      * Used when receiving the HELPSENDMESSAGE command from a user, relays the sender name, number of bytes in the message, and the message to the recipient
      * @throws IOException
      */
@@ -124,12 +159,7 @@ public class KeyChatServerConnection implements Runnable {
        
        String sender = br.readLine();
        String receiverName = br.readLine();
-       String bytes = br.readLine();
-              
-       char[] chars = new char[Integer.parseInt(bytes)];
-       IOUtils.readFully(br, chars);
-       String message = new String(chars);
-              
+       
        // Find receiver connection information online
        KeyChatUser user = findUser(receiverName);
        
@@ -141,7 +171,16 @@ public class KeyChatServerConnection implements Runnable {
            pw.flush();
            return;
        }
-       
+       else {
+    	   pw.println("User " + receiverName + " is online");
+    	   pw.flush();
+       }
+              
+       String bytes = br.readLine();
+       char[] chars = new char[Integer.parseInt(bytes)];
+       IOUtils.readFully(br, chars);
+       String message = new String(chars);
+                     
        // Open output stream to write to the receiver
        OutputStream os = user.getSocket().get(1).getOutputStream();
        
@@ -154,7 +193,7 @@ public class KeyChatServerConnection implements Runnable {
        pwReceiver.flush();
        
        // Report to sender message was forward successfully
-       pw.println("Message sent to " + receiverName + " successfully");
+//       pw.println("Message sent to " + receiverName + " successfully");
        pw.flush();
        
     }
@@ -187,7 +226,7 @@ public class KeyChatServerConnection implements Runnable {
      * @return the desired user, or a null user if that user is not online
      */
     private KeyChatUser findUser(String receiverName) {
-        KeyChatUser userFound = new KeyChatUser(receiverName, "", -1);
+        KeyChatUser userFound = new KeyChatUser(receiverName, "", -1, null, null);
         for(KeyChatUser user : KeyChatServerApp.onlineUsers) {
             if(user.getUser().equalsIgnoreCase(receiverName)) {
                 userFound = user;

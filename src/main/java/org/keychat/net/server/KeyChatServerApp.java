@@ -98,6 +98,7 @@ public class KeyChatServerApp implements Runnable
     @Override
     public void run()
     {
+        int counter = 0;
         while(!hasBeenStopped.get())
         {
             Socket socket;
@@ -105,10 +106,11 @@ public class KeyChatServerApp implements Runnable
             try {
                 serverStarted.release();
                 socket = serverSocket.accept();
+                counter++;
                 log.info("Server accepted client from [" + socket.getInetAddress().getCanonicalHostName() + "]");
 
                 // launch the connection thread for dealing with a client
-                new Thread(new KeyChatServerConnection(socket), "Server connection thread").start();
+                new Thread(new KeyChatServerConnection(socket), "Server connection thread " + counter).start();
 
 
             } catch (IOException e) {

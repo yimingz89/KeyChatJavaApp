@@ -2,17 +2,22 @@ package org.keychat.net.client;
 
 
 import java.io.BufferedReader;
+import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.net.Socket;
+import java.nio.file.Path;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import name.neuhalfen.projects.crypto.bouncycastle.openpgp.BouncyGPG;
 
 /**
  * This is a client connection to the main server for communicating between clients through the main server using the HELPSENDMESSAGE command.
@@ -27,10 +32,12 @@ public class KeyChatSecondConnection extends KeyChatClientBase implements Runnab
     private PrintWriter pw;
     
 
-    public KeyChatSecondConnection(Socket socket, String user, int port) throws IOException {
+    public KeyChatSecondConnection(Socket socket, String user, String uid, int port, Path publicKeyPath) throws IOException {
         this.user = user;
+        this.uid = uid;
         clientServerPort = port;
-        
+        this.publicKeyPath = publicKeyPath;
+
         pw = new PrintWriter(socket.getOutputStream());
         br = new BufferedReader(new InputStreamReader(socket.getInputStream()));
     }
@@ -55,22 +62,36 @@ public class KeyChatSecondConnection extends KeyChatClientBase implements Runnab
                 IOUtils.readFully(br, chars); // get specified number of bytes from reader
                 String cipherText = new String(chars); // store encrypted message as a String
                 
-                String cipherFileName = tempFolder + RandomStringUtils.randomAlphanumeric(10);
-                File cipherFile = new File(cipherFileName);
-                FileUtils.write(cipherFile, cipherText); // write encrypted text to a temporary file
                 
-                // decrypt (using Keybase command line) and display on console
-                String decryptedMsg = KeybaseCommandLine.decrypt(cipherFileName);
-                System.out.print("Message from " + sender + ": " + decryptedMsg);
+                // decrypt using secret key
                 
-                cipherFile.delete(); // delete temporary file
+                
+                String plainText = decrypt(cipherText, KeyChatClientApp.uidMap.get(sender));
+                System.out.println("Message from " + sender + ": " + plainText);
                
                
                
             } 
-        } catch (IOException e) {
+        } catch (Exception e) {
             log.error("Error reading from server", e);
         }
+    }
+    
+    private String decrypt(String cipherText, String senderUid) throws Exception {
+        System.out.println("Decrypting ... ");
+        ByteArrayInputStream cipherTextStream = new ByteArrayInputStream(cipherText.getBytes());
+
+        final InputStream decryptedInputStream = BouncyGPG.decryptAndVerifyStream()
+            .withConfig(KeyChatClientApp.keyring)
+            //.andIgnoreSignatures()
+            .andRequireSignatureFromAllKeys(senderUid)
+            .fromEncryptedInputStream(cipherTextStream);
+
+        byte[] plain = new byte[2048];
+        int len = decryptedInputStream.read(plain);
+
+        String plainText = new String(plain, 0, len);
+        return plainText;
     }
 
 }
