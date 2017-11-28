@@ -330,7 +330,6 @@ public class KeyChatClientApp extends KeyChatClientBase implements Runnable
 				.forGpgExportedKeys(KeyringConfigCallbacks.withUnprotectedKeys());
 		// check if username is in hash map
 		if(!uidMap.containsKey(receiverName)) {
-//			receiverPK = receivePKFromServer(receiverName, pw, br);
 			receiverPK = getPublicKey(receiverName);
 			if(receiverPK == null) {
 				log.info("Unable to get public key for " + receiverName);
@@ -339,6 +338,7 @@ public class KeyChatClientApp extends KeyChatClientBase implements Runnable
 			tempKeyring.addPublicKey(receiverPK.getBytes());
 			keyring.addPublicKey(receiverPK.getBytes());
 			String receiverUid = tempKeyring.getPublicKeyRings().getKeyRings().next().getPublicKey().getUserIDs().next();
+			
 			int start = receiverUid.indexOf('<');
 			String receiverEmail = receiverUid.substring(start+1, receiverUid.length()-1);
 			uidMap.put(receiverName, receiverEmail);
@@ -357,7 +357,11 @@ public class KeyChatClientApp extends KeyChatClientBase implements Runnable
 			pw.flush();
 			// get status back from main server
 			String status = br.readLine();
-			log.info(status);
+			log.info("User " + receiverName + " is " + status);
+			
+			if(status.equals("offline")) {
+				return;
+			}
 
 			encryptedMsg = encryptMessage(message, uidMap.get(receiverName));
 			//            encryptedMsg = KeybaseCommandLine.encrypt(message, receiverName);
@@ -373,32 +377,6 @@ public class KeyChatClientApp extends KeyChatClientBase implements Runnable
 
 	}
 
-
-	private String receivePKFromServer(String receiverName, PrintWriter pw, BufferedReader br) throws IOException {
-		pw.println(GETPUBLICKEY);
-		pw.println(receiverName);
-		pw.flush();
-
-		// get status back from main server
-		//        String status = br.readLine();
-		//        log.info(status);
-
-		String receiverUid = br.readLine();
-		int length = Integer.parseInt(br.readLine());
-		if(length == 0) {
-			return null;
-		}
-		char[] chars = new char[length];
-		IOUtils.readFully(br, chars);
-		String receiverPublicKey = new String(chars);
-
-		log.info("Received public key for " + receiverName);
-		log.info("\n" + receiverPublicKey);
-
-		uidMap.put(receiverName, receiverUid);
-
-		return receiverPublicKey;
-	}
 	
 	private String getPublicKey(String username) throws Exception {
 		String url = "https://keybase.io/_/api/1.0/user/lookup.json?username=" + username;
@@ -414,6 +392,10 @@ public class KeyChatClientApp extends KeyChatClientBase implements Runnable
 		}
 				
 		JsonObject resultObj = new JsonParser().parse(result.toString()).getAsJsonObject();
+		int status = resultObj.get("status").getAsJsonObject().get("code").getAsInt();
+		if(status != 0) {
+			return null;
+		}
 		String bundle = resultObj.get("them").getAsJsonObject().get("public_keys").getAsJsonObject().get("primary").getAsJsonObject().get("bundle").getAsString();
 		
 		return bundle;

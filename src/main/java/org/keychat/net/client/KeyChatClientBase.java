@@ -37,9 +37,9 @@ public class KeyChatClientBase {
     	pw.println(user);
         pw.println(clientServerPort);
         String publicKey = IOUtils.toString(new FileInputStream(publicKeyPath.toFile()));
-        pw.println(publicKey.getBytes().length);
-        pw.print(publicKey);
-        pw.println(uid);
+        //pw.println(publicKey.getBytes().length);
+        //pw.print(publicKey);
+        //pw.println(uid);
         pw.flush();
     }
 
