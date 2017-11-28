@@ -53,17 +53,33 @@ public class KeybaseLogin {
 	static int p = 1;
 	static int len = 256;
 
-	static String username = "Test_Account";
-	static String password = "testpassword";
+	// these two are the parameters
+	static String testUsername = "Test_Account";
+	static String testPassword = "testpassword";
 
 	static byte[] passwordStream;
 	static String login_session;
 
 	public static void main(String[] args) throws Exception {
+		String[] returns = login_to_Keybase(testUsername, testPassword);
+		System.out.println(returns[0]);
+	}
+
+	/**
+	 * Logins to Keybase
+	 * @param username
+	 * @param password
+	 * @return secret key (decrypted with go-triplesec script) along with any error message
+	 * @throws Exception
+	 */
+	public static String[] login_to_Keybase(String username, String password) throws Exception {
+		String[] returns = new String[2];
+		String decryptedSecretKey = "";
+		String error = "";
 		// getsalt request
 		String url = "https://keybase.io/_/api/1.0/getsalt.json?email_or_username=" + username + "&pdpka_login=true";
 		HttpClient client = HttpClients.custom()
-		        .setDefaultRequestConfig(RequestConfig.custom().setCookieSpec(CookieSpecs.STANDARD).build()).build();
+				.setDefaultRequestConfig(RequestConfig.custom().setCookieSpec(CookieSpecs.STANDARD).build()).build();
 		HttpGet request = new HttpGet(url);
 		HttpResponse response = client.execute(request);
 		BufferedReader rd = new BufferedReader(new InputStreamReader(response.getEntity().getContent()));
@@ -85,7 +101,7 @@ public class KeybaseLogin {
 		// email","fields":{"email_or_username":"bad username or
 		// email"},"name":"INPUT_ERROR"}}
 		if (resultObj.get("status").getAsJsonObject().get("code").getAsString().equals("0")
-		        && resultObj.get("status").getAsJsonObject().get("name").getAsString().equals("OK")) {
+				&& resultObj.get("status").getAsJsonObject().get("name").getAsString().equals("OK")) {
 			System.out.println("good login response.");
 		} else {
 			System.exit(0);
@@ -100,14 +116,14 @@ public class KeybaseLogin {
 		System.out.println("v5: " + DatatypeConverter.printHexBinary(v5));
 
 		// compute pdpkas
-		String pdpka5 = compute_pdpka(v5);
+		String pdpka5 = compute_pdpka(v5, username);
 		System.out.println("pdpka5: " + pdpka5);
-		String pdpka4 = compute_pdpka(v4);
+		String pdpka4 = compute_pdpka(v4, username);
 		System.out.println("pdpka4: " + pdpka4);
 
 		// http post request
 		HttpClient httpclient = HttpClients.custom()
-		        .setDefaultRequestConfig(RequestConfig.custom().setCookieSpec(CookieSpecs.STANDARD).build()).build();
+				.setDefaultRequestConfig(RequestConfig.custom().setCookieSpec(CookieSpecs.STANDARD).build()).build();
 		HttpPost httppost = new HttpPost("https://keybase.io/_/api/1.0/login.json");
 
 		// Request parameters and other properties
@@ -133,7 +149,7 @@ public class KeybaseLogin {
 				String sessionCookie = resultObj2.get("session").getAsString();
 				System.out.println("session cookie: " + sessionCookie);
 				String bundle = resultObj2.get("me").getAsJsonObject().get("private_keys").getAsJsonObject()
-				        .get("primary").getAsJsonObject().get("bundle").getAsString();
+						.get("primary").getAsJsonObject().get("bundle").getAsString();
 				System.out.println("bundle: " + bundle);
 
 				byte[] decoded = Base64.decodeBase64(bundle);
@@ -172,8 +188,8 @@ public class KeybaseLogin {
 				System.out.println("\n\nKey Decrypted with Triplesec:\n");
 				// using the Runtime exec method:
 				Process p = Runtime.getRuntime()
-				    //.exec("triplesec -k " + password + " dec " + DatatypeConverter.printHexBinary(data).toLowerCase());
-				    .exec("./go/src/t/t " + password + " " + DatatypeConverter.printHexBinary(data).toLowerCase());
+						//.exec("triplesec -k " + password + " dec " + DatatypeConverter.printHexBinary(data).toLowerCase());
+						.exec("./go/src/t/t " + password + " " + DatatypeConverter.printHexBinary(data).toLowerCase());
 
 				BufferedReader stdInput = new BufferedReader(new InputStreamReader(p.getInputStream()));
 
@@ -182,11 +198,13 @@ public class KeybaseLogin {
 				String s = null;
 				// read the output from the command
 				while ((s = stdInput.readLine()) != null) {
+					decryptedSecretKey += s;
 					System.out.println(s);
 				}
 
 				// read any errors from the attempted command
 				while ((s = stdError.readLine()) != null) {
+					error += s;
 					System.out.println(s);
 				}
 				scanner.close();
@@ -194,9 +212,12 @@ public class KeybaseLogin {
 				inputStream.close();
 			}
 		}
+		returns[0] = decryptedSecretKey;
+		returns[1] = error;
+		return returns;
 	}
 
-	public static String compute_pdpka(byte[] v) throws IOException, GeneralSecurityException {
+	public static String compute_pdpka(byte[] v, String username) throws IOException, GeneralSecurityException {
 		// generate nonce
 		SecureRandom random = new SecureRandom();
 		byte[] nonce = new byte[16];

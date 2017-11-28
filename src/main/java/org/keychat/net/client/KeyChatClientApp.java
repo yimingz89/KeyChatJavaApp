@@ -11,7 +11,6 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.net.SocketTimeoutException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.security.Security;
@@ -19,8 +18,15 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.Scanner;
 import java.util.concurrent.ConcurrentHashMap;
+import javax.xml.bind.DatatypeConverter;
 
 import org.apache.commons.io.IOUtils;
+import org.apache.http.HttpResponse;
+import org.apache.http.client.HttpClient;
+import org.apache.http.client.config.CookieSpecs;
+import org.apache.http.client.config.RequestConfig;
+import org.apache.http.client.methods.HttpGet;
+import org.apache.http.impl.client.HttpClients;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.bouncycastle.openpgp.PGPPublicKey;
 import org.bouncycastle.openpgp.PGPPublicKeyRing;
@@ -28,6 +34,9 @@ import org.bouncycastle.openpgp.PGPSecretKey;
 import org.bouncycastle.openpgp.PGPSecretKeyRing;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 
 import name.neuhalfen.projects.crypto.bouncycastle.openpgp.BouncyGPG;
 import name.neuhalfen.projects.crypto.bouncycastle.openpgp.keys.callbacks.KeyringConfigCallbacks;
@@ -58,7 +67,7 @@ public class KeyChatClientApp extends KeyChatClientBase implements Runnable
 
 	public static void main(String[] args) throws Exception {
 
-		if(args.length != 11) {
+		if(args.length != 13) {
 			printUsage();
 			return;
 		}
@@ -67,6 +76,7 @@ public class KeyChatClientApp extends KeyChatClientBase implements Runnable
 		String serverAddress = null;
 		int serverPort = -1;
 		String user = null;
+		String password = null;
 		String uid =  null;
 		int clientServerPort = -1;
 		Path publicKeyPath = null;
@@ -79,6 +89,10 @@ public class KeyChatClientApp extends KeyChatClientBase implements Runnable
 
 			case "--username":
 				user = args[++i];
+				break;
+
+			case "--password":
+				password = args[++i];
 				break;
 
 			case "--client-server-port":
@@ -98,8 +112,7 @@ public class KeyChatClientApp extends KeyChatClientBase implements Runnable
 			}
 		}
 
-		if(serverAddress == null || serverPort < 0 || 
-				user == null || clientServerPort < 0 ||
+		if(serverAddress == null || serverPort < 0 || user == null || password == null || clientServerPort < 0 ||
 				publicKeyPath == null || uid == null) {
 			printUsage();
 			return;
@@ -109,22 +122,22 @@ public class KeyChatClientApp extends KeyChatClientBase implements Runnable
 			Security.addProvider(new BouncyCastleProvider());
 		}
 
-		byte[] mySK = Files.readAllBytes(Paths.get("my-secret-key.asc"));
+//		byte[] mySK = Files.readAllBytes(Paths.get("my-secret-key.asc"));
 
 		keyring = KeyringConfigs
 				.forGpgExportedKeys(KeyringConfigCallbacks.withUnprotectedKeys());
-		keyring.addSecretKey(mySK);
-		printSks(keyring);
+//		keyring.addSecretKey(mySK);
+//		printSks(keyring);
 
-//		byte[] receiverPK = Files.readAllBytes(Paths.get("receiverPK.asc"));
-//		keyring.addPublicKey(receiverPK);
-//		printPks(keyring);
+		//		byte[] receiverPK = Files.readAllBytes(Paths.get("receiverPK.asc"));
+		//		keyring.addPublicKey(receiverPK);
+		//		printPks(keyring);
 
 
 		try {
 			// launch the client thread
 			Socket firstClientSocket = connect(serverAddress, serverPort);
-			Thread clientThread = new Thread(new KeyChatClientApp(firstClientSocket, user, uid, clientServerPort, publicKeyPath), "KeyChat client thread");
+			Thread clientThread = new Thread(new KeyChatClientApp(firstClientSocket, user, password, uid, clientServerPort, publicKeyPath), "KeyChat client thread");
 			clientThread.start();
 
 			// launch second client connection for receiving commands/messages from server
@@ -153,7 +166,7 @@ public class KeyChatClientApp extends KeyChatClientBase implements Runnable
 
 	}
 
-	public static void printPks(InMemoryKeyring keyring) throws Exception {
+	private static void printPks(InMemoryKeyring keyring) throws Exception {
 		for(PGPPublicKeyRing ring : keyring.getPublicKeyRings()) {
 			// TODO: print all PKS here!
 			PGPPublicKey pk = ring.getPublicKey();
@@ -166,7 +179,7 @@ public class KeyChatClientApp extends KeyChatClientBase implements Runnable
 		}
 	}
 
-	public static void printSks(InMemoryKeyring keyring) throws Exception {
+	private static void printSks(InMemoryKeyring keyring) throws Exception {
 		int numSecretKeyRings = 0;
 
 		for(PGPSecretKeyRing ring : keyring.getSecretKeyRings()) {
@@ -202,8 +215,9 @@ public class KeyChatClientApp extends KeyChatClientBase implements Runnable
 	 * @param clientServerPort is the port of the server this KeyChat Client will run
 	 * @throws IOException
 	 */
-	public KeyChatClientApp(Socket socket, String user, String uid, int clientServerPort, Path publicKeyPath) throws IOException {
+	public KeyChatClientApp(Socket socket, String user, String password, String uid, int clientServerPort, Path publicKeyPath) throws IOException {
 		this.user = user;
+		this.password = password;
 		this.uid = uid;
 		this.clientServerPort = clientServerPort;
 		this.publicKeyPath = publicKeyPath;
@@ -214,7 +228,7 @@ public class KeyChatClientApp extends KeyChatClientBase implements Runnable
 	 * Prints usage
 	 */
 	private static void printUsage() {
-		System.err.println("Usage: java KeyChatClientApp --connect server_address server_port --username user_name  --client-server-port client_server_port --public-key-path public_key_path --user-id user_id");
+		System.err.println("Usage: java KeyChatClientApp --connect server_address server_port --username user_name --password password  --client-server-port client_server_port --public-key-path public_key_path --user-id user_id");
 	}
 
 
@@ -239,7 +253,12 @@ public class KeyChatClientApp extends KeyChatClientBase implements Runnable
 
 		// login to Keybase
 		try {
-			KeybaseCommandLine.KeybaseLogin(user);
+			//KeybaseCommandLine.KeybaseLogin(user);
+
+			//TODO: Implement this and fix other stuff
+			String decryptedSecretKey = KeybaseLogin.login_to_Keybase(this.user, this.password)[0];
+			byte[] decryptedSecretKeyBytes = DatatypeConverter.parseHexBinary(decryptedSecretKey);
+			keyring.addSecretKey(decryptedSecretKeyBytes);
 		}
 		catch(Throwable e) {
 			log.error("Unable to login to Keybase");
@@ -305,14 +324,24 @@ public class KeyChatClientApp extends KeyChatClientBase implements Runnable
 		String message = scanner.nextLine();
 
 		String receiverPK;
+		
+		// create tempKeyring to retrieve receiver's uid
+		InMemoryKeyring tempKeyring = KeyringConfigs
+				.forGpgExportedKeys(KeyringConfigCallbacks.withUnprotectedKeys());
 		// check if username is in hash map
 		if(!uidMap.containsKey(receiverName)) {
-			receiverPK = receivePKFromServer(receiverName, pw, br);
+//			receiverPK = receivePKFromServer(receiverName, pw, br);
+			receiverPK = getPublicKey(receiverName);
 			if(receiverPK == null) {
 				log.info("Unable to get public key for " + receiverName);
 				return;
 			}
+			tempKeyring.addPublicKey(receiverPK.getBytes());
 			keyring.addPublicKey(receiverPK.getBytes());
+			String receiverUid = tempKeyring.getPublicKeyRings().getKeyRings().next().getPublicKey().getUserIDs().next();
+			int start = receiverUid.indexOf('<');
+			String receiverEmail = receiverUid.substring(start+1, receiverUid.length()-1);
+			uidMap.put(receiverName, receiverEmail);
 		}
 
 
@@ -329,7 +358,7 @@ public class KeyChatClientApp extends KeyChatClientBase implements Runnable
 			// get status back from main server
 			String status = br.readLine();
 			log.info(status);
-			
+
 			encryptedMsg = encryptMessage(message, uidMap.get(receiverName));
 			//            encryptedMsg = KeybaseCommandLine.encrypt(message, receiverName);
 			pw.println(encryptedMsg.getBytes().length);
@@ -369,6 +398,26 @@ public class KeyChatClientApp extends KeyChatClientBase implements Runnable
 		uidMap.put(receiverName, receiverUid);
 
 		return receiverPublicKey;
+	}
+	
+	private String getPublicKey(String username) throws Exception {
+		String url = "https://keybase.io/_/api/1.0/user/lookup.json?username=" + username;
+		HttpClient client = HttpClients.custom()
+				.setDefaultRequestConfig(RequestConfig.custom().setCookieSpec(CookieSpecs.STANDARD).build()).build();
+		HttpGet request = new HttpGet(url);
+		HttpResponse response = client.execute(request);
+		BufferedReader rd = new BufferedReader(new InputStreamReader(response.getEntity().getContent()));
+		StringBuffer result = new StringBuffer();
+		String line = "";
+		while ((line = rd.readLine()) != null) {
+			result.append(line);
+		}
+				
+		JsonObject resultObj = new JsonParser().parse(result.toString()).getAsJsonObject();
+		String bundle = resultObj.get("them").getAsJsonObject().get("public_keys").getAsJsonObject().get("primary").getAsJsonObject().get("bundle").getAsString();
+		
+		return bundle;
+		
 	}
 
 

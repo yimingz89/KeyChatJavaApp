@@ -19,6 +19,7 @@ import org.apache.commons.io.IOUtils;
 public class KeyChatClientBase {
 
     protected String user;
+    protected String password;
     protected int clientServerPort;
     protected Path publicKeyPath;
     protected String uid;
