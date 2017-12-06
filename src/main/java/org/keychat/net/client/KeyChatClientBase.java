@@ -21,7 +21,6 @@ public class KeyChatClientBase {
     protected String user;
     protected String password;
     protected int clientServerPort;
-    protected Path publicKeyPath;
     protected String uid;
 
     public KeyChatClientBase() {
@@ -36,10 +35,6 @@ public class KeyChatClientBase {
     protected void appearOnline(PrintWriter pw) throws IOException {
     	pw.println(user);
         pw.println(clientServerPort);
-        String publicKey = IOUtils.toString(new FileInputStream(publicKeyPath.toFile()));
-        //pw.println(publicKey.getBytes().length);
-        //pw.print(publicKey);
-        //pw.println(uid);
         pw.flush();
     }
 

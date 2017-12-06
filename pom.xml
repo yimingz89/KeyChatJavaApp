@@ -20,11 +20,11 @@
 			<artifactId>slf4j-api</artifactId>
 			<version>1.7.7</version>
 		</dependency>
-		<dependency>
-			<groupId>org.slf4j</groupId>
-			<artifactId>slf4j-log4j12</artifactId>
-			<version>1.7.7</version>
-		</dependency>
+<!-- 		<dependency> -->
+<!-- 			<groupId>org.slf4j</groupId> -->
+<!-- 			<artifactId>slf4j-log4j12</artifactId> -->
+<!-- 			<version>1.7.7</version> -->
+<!-- 		</dependency> -->
 		<dependency>
 			<groupId>org.apache.commons</groupId>
 			<artifactId>commons-lang3</artifactId>
@@ -98,6 +98,26 @@
 						<version>2.7.2</version>
 					</dependency>
 				</dependencies>
+			</plugin>
+			<plugin>
+				<groupId>org.codehaus.mojo</groupId>
+				<artifactId>exec-maven-plugin</artifactId>
+				<version>1.6.0</version>
+				<configuration>
+				    <executable>java</executable>
+					<mainClass>org.keychat.net.client.KeyChatClientApp</mainClass>
+					<arguments>
+						<argument>--connect</argument>
+						<argument>localhost</argument>
+						<argument>9999</argument>
+						<argument>--username</argument>
+						<argument>keybaseuser123</argument>
+						<argument>--password</argument>
+						<argument>testpassphrase123</argument>
+						<argument>--client-server-port</argument>
+						<argument>9998</argument>
+					</arguments>
+				</configuration>
 			</plugin>
 		</plugins>
 	</build>

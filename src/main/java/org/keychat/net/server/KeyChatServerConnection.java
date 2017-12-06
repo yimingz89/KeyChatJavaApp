@@ -2,15 +2,12 @@ package org.keychat.net.server;
 
 import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
 import java.net.Socket;
 import java.net.SocketException;
-import java.util.ArrayList;
-import java.util.List;
 
 import org.apache.commons.io.IOUtils;
 import org.slf4j.Logger;
@@ -25,7 +22,6 @@ public class KeyChatServerConnection implements Runnable {
 	private static final String LIST = "list";
 	private static final String SENDMESSAGE = "send-message";
 	private static final String HELPSENDMESSAGE = "help-send-message";
-	private static final String GETPUBLICKEY = "get-public-key";
 	private static final Logger log = LoggerFactory.getLogger(KeyChatServerConnection.class);
 
 
@@ -81,7 +77,6 @@ public class KeyChatServerConnection implements Runnable {
 			boolean repeat = true;
 			while (repeat) {
 				String command = br.readLine();
-				//getCommandFromClient();
 				if(command == null) {
 					log.info("Connection closed by client");
 					return;
@@ -215,14 +210,5 @@ public class KeyChatServerConnection implements Runnable {
 			}
 		}
 		return userFound;
-	}
-
-	/**
-	 * Reads in the command from he client
-	 * @return the command
-	 * @throws IOException
-	 */
-	private String getCommandFromClient() throws IOException {
-		return br.readLine();
 	}
 }

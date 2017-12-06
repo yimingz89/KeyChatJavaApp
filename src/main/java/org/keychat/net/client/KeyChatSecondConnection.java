@@ -3,17 +3,13 @@ package org.keychat.net.client;
 
 import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
-import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.net.Socket;
-import java.nio.file.Path;
 
-import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
-import org.apache.commons.lang3.RandomStringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -26,17 +22,14 @@ public class KeyChatSecondConnection extends KeyChatClientBase implements Runnab
 
     private static final String HELPSENDMESSAGE = "help-send-message";
     private static final Logger log = LoggerFactory.getLogger(KeyChatSecondConnection.class);
-    private static final String tempFolder = System.getProperty("java.io.tmpdir"); // name of the temporary folder where the file for storing the encrypted message is saved
 
     private BufferedReader br;
     private PrintWriter pw;
     
 
-    public KeyChatSecondConnection(Socket socket, String user, String uid, int port, Path publicKeyPath) throws IOException {
+    public KeyChatSecondConnection(Socket socket, String user, int port) throws IOException {
         this.user = user;
-        this.uid = uid;
         clientServerPort = port;
-        this.publicKeyPath = publicKeyPath;
 
         pw = new PrintWriter(socket.getOutputStream());
         br = new BufferedReader(new InputStreamReader(socket.getInputStream()));
@@ -86,6 +79,8 @@ public class KeyChatSecondConnection extends KeyChatClientBase implements Runnab
             //.andIgnoreSignatures()
             .andRequireSignatureFromAllKeys(senderUid)
             .fromEncryptedInputStream(cipherTextStream);
+        
+        System.out.println("Sender ID: " + senderUid);
 
         byte[] plain = new byte[2048];
         int len = decryptedInputStream.read(plain);
