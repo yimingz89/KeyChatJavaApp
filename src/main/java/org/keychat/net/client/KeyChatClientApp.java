@@ -376,6 +376,10 @@ public class KeyChatClientApp extends KeyChatClientBase implements Runnable
 		}
 		String bundle = resultObj.get("them").getAsJsonObject().get("public_keys").getAsJsonObject().get("primary").getAsJsonObject().get("bundle").getAsString();
 		
+		/** 
+		TODO: Check this key against the one in Catena by getting the keymaterial of this key, applying SHA-256 to it, 
+		then checking this hash against the payload in the Keybase KID (bytes 3 to 34)
+		**/
 		return bundle;
 		
 	}
