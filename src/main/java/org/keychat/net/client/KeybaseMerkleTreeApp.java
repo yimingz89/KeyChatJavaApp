@@ -19,7 +19,7 @@ import com.google.gson.JsonParser;
 public class KeybaseMerkleTreeApp {
 
 	public static void main(String[] args) throws IOException {
-		String username = "lauritzt";// "test_account";
+		String username = "lauritzt";
 		String leafHash = "";
 		// seqno=1547059
 		// String hashFrom =
