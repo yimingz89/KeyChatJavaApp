@@ -20,7 +20,6 @@ public class KeyChatServerConnection implements Runnable {
 
 	private static final String EXIT = "exit";
 	private static final String LIST = "list";
-	private static final String SENDMESSAGE = "send-message";
 	private static final String HELPSENDMESSAGE = "help-send-message";
 	private static final Logger log = LoggerFactory.getLogger(KeyChatServerConnection.class);
 
@@ -90,10 +89,6 @@ public class KeyChatServerConnection implements Runnable {
 				switch (command) {
 				case LIST:
 					list();
-					break;
-
-				case SENDMESSAGE:
-					sendMessage();
 					break;
 
 				case EXIT:
@@ -180,20 +175,6 @@ public class KeyChatServerConnection implements Runnable {
 	private void list() {
 		pw.println(KeyChatServerApp.onlineUsers);
 		pw.flush();
-	}
-
-	/**
-	 * Used when receiving the SENDMESSAGE command from a user, reads in the receiver's name and sends back their address and port
-	 * @throws IOException
-	 */
-	private void sendMessage() throws IOException {
-		String receiverName = br.readLine();
-		KeyChatUser user = findUser(receiverName);
-
-		pw.println(user.getAddress());
-		pw.println(user.getPort());
-		pw.flush();
-
 	}
 
 	/**

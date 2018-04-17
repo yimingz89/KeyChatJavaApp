@@ -5,14 +5,12 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
-import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.Socket;
-import java.net.SocketTimeoutException;
 import java.security.Security;
-import java.util.Iterator;
+
 import java.util.Map;
 import java.util.Scanner;
 import java.util.concurrent.ConcurrentHashMap;
@@ -25,10 +23,7 @@ import org.apache.http.client.config.RequestConfig;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.impl.client.HttpClients;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
-import org.bouncycastle.openpgp.PGPPublicKey;
-import org.bouncycastle.openpgp.PGPPublicKeyRing;
-import org.bouncycastle.openpgp.PGPSecretKey;
-import org.bouncycastle.openpgp.PGPSecretKeyRing;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -48,7 +43,6 @@ public class KeyChatClientApp extends KeyChatClientBase implements Runnable
 
 	private static final String EXIT = "exit";
 	private static final String LIST = "list";
-	private static final String SENDMESSAGE = "send-message";
 	private static final String HELPSENDMESSAGE = "help-send-message";
 	private static final int CLIENT_CONNECT_TIMEOUT = 10000;
 
@@ -144,47 +138,6 @@ public class KeyChatClientApp extends KeyChatClientBase implements Runnable
 
 	}
 
-	private static void printPks(InMemoryKeyring keyring) throws Exception {
-		for(PGPPublicKeyRing ring : keyring.getPublicKeyRings()) {
-			PGPPublicKey pk = ring.getPublicKey();
-			Iterator<String> it = pk.getUserIDs(); 
-			while(it.hasNext()) {
-				String uid = it.next();
-
-				System.out.println("UID: " + uid);
-			}
-		}
-	}
-
-	private static void printSks(InMemoryKeyring keyring) throws Exception {
-		int numSecretKeyRings = 0;
-
-		for(PGPSecretKeyRing ring : keyring.getSecretKeyRings()) {
-			numSecretKeyRings++;
-			Iterator<PGPSecretKey> it = ring.getSecretKeys();
-			int count = 0;
-
-			System.out.println("Printing SKs in secret key ring...");
-			while(it.hasNext()) {
-				count++;
-				PGPSecretKey sk = it.next();
-				System.out.print("KID: " + Long.toHexString(sk.getKeyID()));
-
-				@SuppressWarnings("rawtypes")              
-				Iterator uit = sk.getUserIDs(); 
-				while(uit.hasNext()) {
-					String uid = (String)uit.next();
-
-					System.out.print(", UID: " + uid);
-				}
-				System.out.println();
-			}
-			System.out.println(" * Found " + count + " SKs in secret key ring!");
-		}
-
-		System.out.println("Number of secret key rings: " + numSecretKeyRings);
-	}
-
 	/**
 	 * Constructor for KeyChatClientApp
 	 * @param socket is the socket for connecting with the main server
@@ -259,10 +212,6 @@ public class KeyChatClientApp extends KeyChatClientBase implements Runnable
 
 				case EXIT:
 					repeat = false;
-					break;
-
-				case SENDMESSAGE:
-					sendMessage(pw, br);
 					break;
 
 				case HELPSENDMESSAGE:
@@ -398,72 +347,7 @@ public class KeyChatClientApp extends KeyChatClientBase implements Runnable
 		receiverSocket.connect(sockAddr, CLIENT_CONNECT_TIMEOUT);	
 		return receiverSocket;
 	}
-
-	/**
-	 * Sends a message by connecting directly to the receiver without relaying through the main server
-	 * @param pw
-	 * @param br
-	 * @throws IOException
-	 */
-	public void sendMessage(PrintWriter pw, BufferedReader br) throws IOException {
-		String receiverName;
-		String message;
-		String receiverAddress;
-		int receiverPort;
-
-		// get message from console
-		System.out.print("Enter message: ");
-		message = scanner.nextLine();
-
-		// get receiver's username from console
-		System.out.print("Enter the receiver's username: "); 
-		receiverName = scanner.nextLine();
-
-		// send over the SENDMESSAGE command and the receiverName to main server
-		pw.println(SENDMESSAGE);
-		pw.println(receiverName);
-		pw.flush();
-
-		// receive the address and port of recipient
-		receiverAddress = br.readLine(); 
-		receiverPort = Integer.parseInt(br.readLine());
-
-		if(receiverPort == -1) {
-			log.info("User " + receiverName + " not online");
-			return;
-		}
-
-		// connect to receiver's server here
-		Socket socket;
-		try {
-			socket = connectToReceiver(receiverAddress, receiverPort);
-		} catch (SocketTimeoutException e) {
-			log.error("Could not connect to receiver's server");
-			return;
-		} 
-
-		// set PrintWriter for writing directly to recipient 
-		OutputStream output = socket.getOutputStream();
-		PrintWriter clientpw = new PrintWriter(new OutputStreamWriter(output));
-
-		// encrypt (using Keybase command line) and send over message 
-		String encryptedMsg;
-		try {
-			encryptedMsg = KeybaseCommandLine.encrypt(message, receiverName);
-			clientpw.println(user);
-			clientpw.println(encryptedMsg);
-			clientpw.flush();
-		}
-		catch (Exception e){
-			log.error("Could not encrypt and send message");
-		}
-
-
-		output.close();
-
-
-	}
-
+	
 	/**
 	 * Encrypts a message under a given public key
 	 * @param message is the plaintext
